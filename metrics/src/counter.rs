@@ -99,7 +99,7 @@ impl Counter {
         std::thread::spawn(move || {
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(10));
-                counter_clone.cleanup();
+                counter_clone.collect();
             }
         });
         counter
@@ -113,8 +113,8 @@ impl Counter {
         self.inner.display_metrics();
     }
 
-    pub fn cleanup(&self) {
-        self.inner.cleanup();
+    pub fn collect(&self) {
+        self.inner.collect();
     }
 }
 
@@ -132,7 +132,7 @@ impl CounterInner {
         counter
     }
 
-    pub fn cleanup(&self) {
+    pub fn collect(&self) {
         self.metric_points_map.write().unwrap().clear();
         self.zero_attribute_point.store(0, std::sync::atomic::Ordering::Relaxed);
     }
@@ -149,7 +149,7 @@ impl CounterInner {
             metric_point.add(1);
         } else {
             drop(metric_points_map);
-            // TODO: Dedupe keys.
+            // TODO: De-dup keys.
             let mut metric_points_map = self.metric_points_map.write().unwrap();
             // sort and try again
             let mut attributes_as_vec = attributes.to_vec();
