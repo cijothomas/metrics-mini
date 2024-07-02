@@ -25,25 +25,25 @@ pub fn counter_benchmark(c: &mut Criterion) {
 
     c.bench_function("counter_0", |b| {
         b.iter(|| {
-            counter.add("counter", &[]);
+            counter.add(10, &[]);
         });
     });
 
     c.bench_function("counter_1", |b| {
         b.iter(|| {
-            counter.add("counter", &attributes1);
+            counter.add(10, &attributes1);
         });
     });
 
     c.bench_function("counter_3", |b| {
         b.iter(|| {
-            counter.add("counter", &attributes3);
+            counter.add(10, &attributes3);
         });
     });
 
     c.bench_function("counter_5", |b| {
         b.iter(|| {
-            counter.add("counter", &attributes5);
+            counter.add(10, &attributes5);
         });
     });
 }

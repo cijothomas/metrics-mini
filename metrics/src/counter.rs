@@ -22,8 +22,8 @@ impl Counter {
         }
     }
 
-    pub fn add(&self, name: &'static str, attributes: &[KeyValue]) {
-        self.inner.add(name, attributes);
+    pub fn add(&self, value: u32, attributes: &[KeyValue]) {
+        self.inner.add(value, attributes);
     }
 
     pub fn display_metrics(&self) {
@@ -72,17 +72,17 @@ impl CounterInner {
         metric
     }
 
-    pub fn add(&self, _name: &'static str, attributes: &[KeyValue]) {
+    pub fn add(&self, value: u32, attributes: &[KeyValue]) {
         if attributes.is_empty() {
             self.zero_attribute_point
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                .fetch_add(value as usize, std::sync::atomic::Ordering::Relaxed);
             return;
         }
 
         let metric_attributes = MetricAttributes::new(attributes);
         let metric_points_map = self.metric_points_map.read().unwrap();
         if let Some(metric_point) = metric_points_map.get(&metric_attributes) {
-            metric_point.add(1);
+            metric_point.add(value);
         } else {
             drop(metric_points_map);
             // TODO: De-dup keys.
@@ -93,11 +93,12 @@ impl CounterInner {
             let metric_attributes_sorted = MetricAttributes::new_from_vec(attributes_as_vec);
 
             if let Some(metric_point) = metric_points_map.get(&metric_attributes_sorted) {
-                metric_point.add(1);
+                metric_point.add(value);
             } else {
                 // insert both incoming order and sorted order
                 // insert in incoming order.
                 let mp_new = MetricPoint::new();
+                mp_new.add(value);
                 metric_points_map.insert(metric_attributes, mp_new.clone());
 
                 // insert in sorted order

@@ -23,14 +23,14 @@ fn main() {
 
     println!("Press 'Enter' to display metrics, 'Esc'/Ctrl+C to quit");
     loop {
-        counter.add("counter", &attributes);
-        counter.add("counter", &attributes_in_diff_order);
-        counter.add("counter", &attributes_in_diff_order2);
-        counter.add("counter", &attributes);
-        counter.add("counter", &attributes_in_diff_order);
+        counter.add(10, &attributes);
+        counter.add(10,  &attributes_in_diff_order);
+        counter.add(10,  &attributes_in_diff_order2);
+        counter.add(10,  &attributes);
+        counter.add(10,  &attributes_in_diff_order);
 
-        counter.add("counter2", &[]);
-        counter.add("counter2", &[]);
+        counter.add(10, &[]);
+        counter.add(10, &[]);
         thread::sleep(std::time::Duration::from_secs(1));
     }
 }
