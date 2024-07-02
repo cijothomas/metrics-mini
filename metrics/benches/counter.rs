@@ -25,29 +25,27 @@ pub fn counter_benchmark(c: &mut Criterion) {
 
     c.bench_function("counter_0", |b| {
         b.iter(|| {
-            tracker.add("counter", &[]);
+            counter.add("counter", &[]);
         });
     });
 
     c.bench_function("counter_1", |b| {
         b.iter(|| {
-            tracker.add("counter", &attributes1);
+            counter.add("counter", &attributes1);
         });
     });
 
     c.bench_function("counter_3", |b| {
         b.iter(|| {
-            tracker.add("counter", &attributes3);
+            counter.add("counter", &attributes3);
         });
     });
 
     c.bench_function("counter_5", |b| {
         b.iter(|| {
-            tracker.add("counter", &attributes5);
+            counter.add("counter", &attributes5);
         });
     });
-
-    tracker.display_metrics();
 }
 
 criterion_group!(benches, counter_benchmark);
