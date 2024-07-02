@@ -21,13 +21,13 @@ fn main() {
         KeyValue::new("key2", "value2"),
     ];
 
-    println!("Press 'Enter' to display metrics, 'Esc'/Ctrl+C to quit");
+    println!("Metrics displayed every 10 secs. Press Ctrl+C to stop.");
     loop {
         counter.add(10, &attributes);
-        counter.add(10,  &attributes_in_diff_order);
-        counter.add(10,  &attributes_in_diff_order2);
-        counter.add(10,  &attributes);
-        counter.add(10,  &attributes_in_diff_order);
+        counter.add(10, &attributes_in_diff_order);
+        counter.add(10, &attributes_in_diff_order2);
+        counter.add(10, &attributes);
+        counter.add(10, &attributes_in_diff_order);
 
         counter.add(10, &[]);
         counter.add(10, &[]);
