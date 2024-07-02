@@ -1,12 +1,12 @@
 use crossterm::event::{self, Event, KeyCode};
-use metrics::counter::Counter;
+use metrics::{common::KeyValue, counter::Counter};
 use std::thread;
 
 fn main() {
     let counter = Counter::new_with_periodic_flush();
-    let attributes = [("key2", "value2"), ("key1", "value1"), ("key3", "value3")];
-    let attributes_in_diff_order = [("key1", "value1"), ("key2", "value2"), ("key3", "value3")];
-    let attributes_in_diff_order2 = [("key1", "value1"), ("key3", "value3"), ("key2", "value2")];
+    let attributes = [KeyValue::new("key2", "value2"), KeyValue::new("key1", "value1"), KeyValue::new("key3", "value3")];
+    let attributes_in_diff_order = [KeyValue::new("key1", "value1"), KeyValue::new("key2", "value2"), KeyValue::new("key3", "value3")];
+    let attributes_in_diff_order2 = [KeyValue::new("key1", "value1"), KeyValue::new("key3", "value3"), KeyValue::new("key2", "value2")];
 
     println!("Press 'Enter' to display metrics, 'Esc'/Ctrl+C to quit");
     loop {
@@ -16,8 +16,8 @@ fn main() {
         counter.add("counter", &attributes);
         counter.add("counter", &attributes_in_diff_order);
 
-        counter.add("counter2", &vec![]);
-        counter.add("counter2", &vec![]);
+        counter.add("counter2", &[]);
+        counter.add("counter2", &[]);
         thread::sleep(std::time::Duration::from_secs(1));
 
         if event::poll(std::time::Duration::from_secs(0)).unwrap() {

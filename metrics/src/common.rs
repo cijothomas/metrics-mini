@@ -1,9 +1,8 @@
-use ordered_float::OrderedFloat;
 use std::borrow::Cow;
-use std::cmp::Ordering;
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::{fmt, hash};
+use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 
 /// The key part of attribute [KeyValue] pairs.
 ///
@@ -137,6 +136,55 @@ impl fmt::Display for Key {
         }
     }
 }
+
+struct F64Hashable(f64);
+
+impl PartialEq for F64Hashable {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_bits() == other.0.to_bits()
+    }
+}
+
+impl Eq for F64Hashable {}
+
+impl Hash for F64Hashable {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state);
+    }
+}
+
+impl Hash for KeyValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.key.hash(state);
+        match &self.value {
+            Value::F64(f) => F64Hashable(*f).hash(state),
+            Value::Array(a) => match a {
+                Array::Bool(b) => b.hash(state),
+                Array::I64(i) => i.hash(state),
+                Array::F64(f) => f.iter().for_each(|f| F64Hashable(*f).hash(state)),
+                Array::String(s) => s.hash(state),
+            },
+            Value::Bool(b) => b.hash(state),
+            Value::I64(i) => i.hash(state),
+            Value::String(s) => s.hash(state),
+        };
+    }
+}
+
+impl PartialOrd for KeyValue {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Ordering is based on the key only.
+impl Ord for KeyValue {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.key.cmp(&other.key)
+    }
+}
+
+impl Eq for KeyValue {}
 
 #[derive(Clone, Debug, Eq)]
 enum OtelString {
@@ -425,266 +473,3 @@ impl KeyValue {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct HashKeyValue(KeyValue);
-
-impl Hash for HashKeyValue {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.key.hash(state);
-        match &self.0.value {
-            Value::F64(f) => OrderedFloat(*f).hash(state),
-            Value::Array(a) => match a {
-                Array::Bool(b) => b.hash(state),
-                Array::I64(i) => i.hash(state),
-                Array::F64(f) => f.iter().for_each(|f| OrderedFloat(*f).hash(state)),
-                Array::String(s) => s.hash(state),
-            },
-            Value::Bool(b) => b.hash(state),
-            Value::I64(i) => i.hash(state),
-            Value::String(s) => s.hash(state),
-        };
-    }
-}
-
-impl PartialOrd for HashKeyValue {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for HashKeyValue {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.0.key.cmp(&other.0.key) {
-            Ordering::Equal => match type_order(&self.0.value).cmp(&type_order(&other.0.value)) {
-                Ordering::Equal => match (&self.0.value, &other.0.value) {
-                    (Value::F64(f), Value::F64(of)) => OrderedFloat(*f).cmp(&OrderedFloat(*of)),
-                    (Value::Array(Array::Bool(b)), Value::Array(Array::Bool(ob))) => b.cmp(ob),
-                    (Value::Array(Array::I64(i)), Value::Array(Array::I64(oi))) => i.cmp(oi),
-                    (Value::Array(Array::String(s)), Value::Array(Array::String(os))) => s.cmp(os),
-                    (Value::Array(Array::F64(f)), Value::Array(Array::F64(of))) => {
-                        match f.len().cmp(&of.len()) {
-                            Ordering::Equal => f
-                                .iter()
-                                .map(|x| OrderedFloat(*x))
-                                .collect::<Vec<_>>()
-                                .cmp(&of.iter().map(|x| OrderedFloat(*x)).collect()),
-                            other => other,
-                        }
-                    }
-                    (Value::Bool(b), Value::Bool(ob)) => b.cmp(ob),
-                    (Value::I64(i), Value::I64(oi)) => i.cmp(oi),
-                    (Value::String(s), Value::String(os)) => s.cmp(os),
-                    _ => Ordering::Equal,
-                },
-                other => other, // 2nd order by value types
-            },
-            other => other, // 1st order by key
-        }
-    }
-}
-
-fn type_order(v: &Value) -> u8 {
-    match v {
-        Value::Bool(_) => 1,
-        Value::I64(_) => 2,
-        Value::F64(_) => 3,
-        Value::String(_) => 4,
-        Value::Array(a) => match a {
-            Array::Bool(_) => 5,
-            Array::I64(_) => 6,
-            Array::F64(_) => 7,
-            Array::String(_) => 8,
-        },
-    }
-}
-
-impl PartialEq for HashKeyValue {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.key == other.0.key
-            && match (&self.0.value, &other.0.value) {
-                (Value::F64(f), Value::F64(of)) => OrderedFloat(*f).eq(&OrderedFloat(*of)),
-                (Value::Array(Array::F64(f)), Value::Array(Array::F64(of))) => {
-                    f.len() == of.len()
-                        && f.iter()
-                            .zip(of.iter())
-                            .all(|(f, of)| OrderedFloat(*f).eq(&OrderedFloat(*of)))
-                }
-                (non_float, other_non_float) => non_float.eq(other_non_float),
-            }
-    }
-}
-
-impl Eq for HashKeyValue {}
-
-/// Marker trait for errors returned by exporters
-pub trait ExportError: std::error::Error + Send + Sync + 'static {
-    /// The name of exporter that returned this error
-    fn exporter_name(&self) -> &'static str;
-}
-
-/// Information about a library or crate providing instrumentation.
-///
-/// An instrumentation library should be named to follow any naming conventions
-/// of the instrumented library (e.g. 'middleware' for a web framework).
-///
-/// See the [instrumentation libraries] spec for more information.
-///
-/// [instrumentation libraries]: https://github.com/open-telemetry/opentelemetry-specification/blob/v1.9.0/specification/overview.md#instrumentation-libraries
-#[derive(Debug, Default, Clone)]
-#[non_exhaustive]
-pub struct InstrumentationLibrary {
-    /// The library name.
-    ///
-    /// This should be the name of the crate providing the instrumentation.
-    pub name: Cow<'static, str>,
-
-    /// The library version.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let library = opentelemetry::InstrumentationLibrary::builder("my-crate").
-    ///     with_version(env!("CARGO_PKG_VERSION")).
-    ///     with_schema_url("https://opentelemetry.io/schemas/1.17.0").
-    ///     build();
-    /// ```
-    pub version: Option<Cow<'static, str>>,
-
-    /// [Schema url] used by this library.
-    ///
-    /// [Schema url]: https://github.com/open-telemetry/opentelemetry-specification/blob/v1.9.0/specification/schemas/overview.md#schema-url
-    pub schema_url: Option<Cow<'static, str>>,
-
-    /// Specifies the instrumentation scope attributes to associate with emitted telemetry.
-    pub attributes: Vec<KeyValue>,
-}
-
-// Uniqueness for InstrumentationLibrary/InstrumentationScope does not depend on attributes
-impl Eq for InstrumentationLibrary {}
-
-impl PartialEq for InstrumentationLibrary {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.version == other.version
-            && self.schema_url == other.schema_url
-    }
-}
-
-impl hash::Hash for InstrumentationLibrary {
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-        self.version.hash(state);
-        self.schema_url.hash(state);
-    }
-}
-
-impl InstrumentationLibrary {
-    /// Deprecated, use [`InstrumentationLibrary::builder()`]
-    ///
-    /// Create an new instrumentation library.
-    #[deprecated(since = "0.23.0", note = "Please use builder() instead")]
-    pub fn new(
-        name: impl Into<Cow<'static, str>>,
-        version: Option<impl Into<Cow<'static, str>>>,
-        schema_url: Option<impl Into<Cow<'static, str>>>,
-        attributes: Option<Vec<KeyValue>>,
-    ) -> InstrumentationLibrary {
-        InstrumentationLibrary {
-            name: name.into(),
-            version: version.map(Into::into),
-            schema_url: schema_url.map(Into::into),
-            attributes: attributes.unwrap_or_default(),
-        }
-    }
-
-    /// Create a new builder to create an [InstrumentationLibrary]
-    pub fn builder<T: Into<Cow<'static, str>>>(name: T) -> InstrumentationLibraryBuilder {
-        InstrumentationLibraryBuilder {
-            name: name.into(),
-            version: None,
-            schema_url: None,
-            attributes: None,
-        }
-    }
-}
-
-/// Configuration options for [InstrumentationLibrary].
-///
-/// An instrumentation library is a library or crate providing instrumentation.
-/// It should be named to follow any naming conventions of the instrumented
-/// library (e.g. 'middleware' for a web framework).
-///
-/// Apart from the name, all other fields are optional.
-///
-/// See the [instrumentation libraries] spec for more information.
-///
-/// [instrumentation libraries]: https://github.com/open-telemetry/opentelemetry-specification/blob/v1.9.0/specification/overview.md#instrumentation-libraries
-#[derive(Debug)]
-pub struct InstrumentationLibraryBuilder {
-    name: Cow<'static, str>,
-
-    version: Option<Cow<'static, str>>,
-
-    schema_url: Option<Cow<'static, str>>,
-
-    attributes: Option<Vec<KeyValue>>,
-}
-
-impl InstrumentationLibraryBuilder {
-    /// Configure the version for the instrumentation library
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let library = opentelemetry::InstrumentationLibrary::builder("my-crate")
-    ///     .with_version("v0.1.0")
-    ///     .build();
-    /// ```
-    pub fn with_version(mut self, version: impl Into<Cow<'static, str>>) -> Self {
-        self.version = Some(version.into());
-        self
-    }
-
-    /// Configure the Schema URL for the instrumentation library
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let library = opentelemetry::InstrumentationLibrary::builder("my-crate")
-    ///     .with_schema_url("https://opentelemetry.io/schemas/1.17.0")
-    ///     .build();
-    /// ```
-    pub fn with_schema_url(mut self, schema_url: impl Into<Cow<'static, str>>) -> Self {
-        self.schema_url = Some(schema_url.into());
-        self
-    }
-
-    /// Configure the attributes for the instrumentation library
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use opentelemetry::KeyValue;
-    ///
-    /// let library = opentelemetry::InstrumentationLibrary::builder("my-crate")
-    ///     .with_attributes(vec![KeyValue::new("k", "v")])
-    ///     .build();
-    /// ```
-    pub fn with_attributes<I>(mut self, attributes: I) -> Self
-    where
-        I: IntoIterator<Item = KeyValue>,
-    {
-        self.attributes = Some(attributes.into_iter().collect());
-        self
-    }
-
-    /// Create a new [InstrumentationLibrary] from this configuration
-    pub fn build(self) -> InstrumentationLibrary {
-        InstrumentationLibrary {
-            name: self.name,
-            version: self.version,
-            schema_url: self.schema_url,
-            attributes: self.attributes.unwrap_or_default(),
-        }
-    }
-}

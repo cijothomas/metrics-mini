@@ -7,6 +7,8 @@ use std::{
 
 use std::collections::hash_map::DefaultHasher;
 
+use crate::common::KeyValue;
+
 #[derive(Clone)]
 pub struct MetricPoint {
     inner: Arc<MetricPointInner>,
@@ -43,12 +45,12 @@ impl MetricPoint {
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct MetricAttributes {
-    attributes: Vec<(&'static str, &'static str)>,
+    attributes: Vec<KeyValue>,
     hash_value: u64,
 }
 
 impl MetricAttributes {
-    fn new(attributes: &[(&'static str, &'static str)]) -> MetricAttributes {
+    fn new(attributes: &[KeyValue]) -> MetricAttributes {
         let attributes_vec = attributes.to_vec();
         let hash_value = calculate_hash(&attributes_vec);
         MetricAttributes {
@@ -57,7 +59,7 @@ impl MetricAttributes {
         }
     }
 
-    fn new_from_vec(attributes: Vec<(&'static str, &'static str)>) -> MetricAttributes {
+    fn new_from_vec(attributes: Vec<KeyValue>) -> MetricAttributes {
         let hash_value = calculate_hash(&attributes);
         MetricAttributes {
             attributes,
@@ -72,7 +74,7 @@ impl Hash for MetricAttributes {
     }
 }
 
-fn calculate_hash(values: &[(&'static str, &'static str)]) -> u64 {
+fn calculate_hash(values: &[KeyValue]) -> u64 {
     let mut hasher = DefaultHasher::new();
     values.iter().fold(&mut hasher, |mut hasher, item| {
         item.hash(&mut hasher);
@@ -105,7 +107,7 @@ impl Counter {
         counter
     }
 
-    pub fn add(&self, name: &'static str, attributes: &[(&'static str, &'static str)]) {
+    pub fn add(&self, name: &'static str, attributes: &[KeyValue]) {
         self.inner.add(name, attributes);
     }
 
@@ -137,7 +139,7 @@ impl CounterInner {
         self.zero_attribute_point.store(0, std::sync::atomic::Ordering::Relaxed);
     }
 
-    pub fn add(&self, _name: &'static str, attributes: &[(&'static str, &'static str)]) {
+    pub fn add(&self, _name: &'static str, attributes: &[KeyValue]) {
         if attributes.is_empty() {
             self.zero_attribute_point.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             return;
@@ -153,7 +155,7 @@ impl CounterInner {
             let mut metric_points_map = self.metric_points_map.write().unwrap();
             // sort and try again
             let mut attributes_as_vec = attributes.to_vec();
-            attributes_as_vec.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+            attributes_as_vec.sort_by(|a, b| a.key.cmp(&b.key));
             let metric_attributes_sorted = MetricAttributes::new_from_vec(attributes_as_vec);
 
             if let Some(metric_point) = metric_points_map.get(&metric_attributes_sorted) {
