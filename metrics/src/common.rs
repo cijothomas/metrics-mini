@@ -1,8 +1,8 @@
 use std::borrow::Cow;
-use std::sync::Arc;
-use std::{fmt, hash};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
+use std::{fmt, hash};
 
 /// The key part of attribute [KeyValue] pairs.
 ///
@@ -472,4 +472,3 @@ impl KeyValue {
         }
     }
 }
-

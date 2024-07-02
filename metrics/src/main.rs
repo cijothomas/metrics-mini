@@ -1,12 +1,28 @@
 use crossterm::event::{self, Event, KeyCode};
-use metrics::{common::KeyValue, counter::Counter};
+use metrics::{common::KeyValue, counter::Counter, meter::Meter, meter_provider::MeterProvider};
 use std::thread;
 
 fn main() {
-    let counter = Counter::new_with_periodic_flush();
-    let attributes = [KeyValue::new("key2", "value2"), KeyValue::new("key1", "value1"), KeyValue::new("key3", "value3")];
-    let attributes_in_diff_order = [KeyValue::new("key1", "value1"), KeyValue::new("key2", "value2"), KeyValue::new("key3", "value3")];
-    let attributes_in_diff_order2 = [KeyValue::new("key1", "value1"), KeyValue::new("key3", "value3"), KeyValue::new("key2", "value2")];
+    let meter_provider = MeterProvider::new();
+    let meter = meter_provider.get_meter("meter");
+    let counter = meter.create_counter("counter-name");
+    // let counter = Counter::new_with_periodic_flush();
+    // let counter = Counter::new();
+    let attributes = [
+        KeyValue::new("key2", "value2"),
+        KeyValue::new("key1", "value1"),
+        KeyValue::new("key3", "value3"),
+    ];
+    let attributes_in_diff_order = [
+        KeyValue::new("key1", "value1"),
+        KeyValue::new("key2", "value2"),
+        KeyValue::new("key3", "value3"),
+    ];
+    let attributes_in_diff_order2 = [
+        KeyValue::new("key1", "value1"),
+        KeyValue::new("key3", "value3"),
+        KeyValue::new("key2", "value2"),
+    ];
 
     println!("Press 'Enter' to display metrics, 'Esc'/Ctrl+C to quit");
     loop {

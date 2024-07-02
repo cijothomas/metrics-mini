@@ -2,7 +2,10 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::{
     collections::HashMap,
-    sync::{atomic::{AtomicU64, AtomicUsize}, RwLock},
+    sync::{
+        atomic::{AtomicU64, AtomicUsize},
+        RwLock,
+    },
 };
 
 use std::collections::hash_map::DefaultHasher;
@@ -34,7 +37,8 @@ impl MetricPoint {
     }
 
     pub fn add(&self, value: u32) {
-        self.inner.sum
+        self.inner
+            .sum
             .fetch_add(value as u64, std::sync::atomic::Ordering::Relaxed);
     }
 
@@ -85,7 +89,7 @@ fn calculate_hash(values: &[KeyValue]) -> u64 {
 
 #[derive(Clone)]
 pub struct Counter {
-    inner : Arc<CounterInner>,
+    inner: Arc<CounterInner>,
 }
 
 impl Counter {
@@ -98,11 +102,9 @@ impl Counter {
     pub fn new_with_periodic_flush() -> Counter {
         let counter = Counter::new();
         let counter_clone = counter.clone();
-        std::thread::spawn(move || {
-            loop {
-                std::thread::sleep(std::time::Duration::from_secs(10));
-                counter_clone.collect();
-            }
+        std::thread::spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_secs(10));
+            counter_clone.collect();
         });
         counter
     }
@@ -122,7 +124,7 @@ impl Counter {
 
 pub struct CounterInner {
     metric_points_map: RwLock<HashMap<MetricAttributes, MetricPoint>>,
-    zero_attribute_point : AtomicUsize,
+    zero_attribute_point: AtomicUsize,
 }
 
 impl CounterInner {
@@ -136,12 +138,14 @@ impl CounterInner {
 
     pub fn collect(&self) {
         self.metric_points_map.write().unwrap().clear();
-        self.zero_attribute_point.store(0, std::sync::atomic::Ordering::Relaxed);
+        self.zero_attribute_point
+            .store(0, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn add(&self, _name: &'static str, attributes: &[KeyValue]) {
         if attributes.is_empty() {
-            self.zero_attribute_point.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            self.zero_attribute_point
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             return;
         }
 
@@ -185,7 +189,8 @@ impl CounterInner {
 
         println!(
             "Zero attribute point: {}",
-            self.zero_attribute_point.load(std::sync::atomic::Ordering::Relaxed)
+            self.zero_attribute_point
+                .load(std::sync::atomic::Ordering::Relaxed)
         );
     }
 }

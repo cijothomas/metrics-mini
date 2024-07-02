@@ -7,7 +7,11 @@ pub fn counter_benchmark(c: &mut Criterion) {
 
     let attributes1 = [KeyValue::new("key1", "value1")];
 
-    let attributes3 = [KeyValue::new("key1", "value1"), KeyValue::new("key2", "value2"), KeyValue::new("key3", "value3")];
+    let attributes3 = [
+        KeyValue::new("key1", "value1"),
+        KeyValue::new("key2", "value2"),
+        KeyValue::new("key3", "value3"),
+    ];
 
     let attributes5 = [
         KeyValue::new("key1", "value1"),
