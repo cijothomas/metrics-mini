@@ -1,91 +1,14 @@
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::vec;
 use std::{
     collections::HashMap,
-    sync::{
-        atomic::{AtomicU64, AtomicUsize},
-        RwLock,
-    },
+    sync::{atomic::AtomicUsize, RwLock},
 };
 
-use std::collections::hash_map::DefaultHasher;
-
+use crate::attributes::MetricAttributes;
 use crate::common::KeyValue;
-
-#[derive(Clone)]
-pub struct MetricPoint {
-    inner: Arc<MetricPointInner>,
-}
-
-pub struct MetricPointInner {
-    sum: AtomicU64,
-}
-
-impl MetricPointInner {
-    fn new() -> MetricPointInner {
-        MetricPointInner {
-            sum: AtomicU64::new(1),
-        }
-    }
-}
-
-impl MetricPoint {
-    pub fn new() -> MetricPoint {
-        MetricPoint {
-            inner: Arc::new(MetricPointInner::new()),
-        }
-    }
-
-    pub fn add(&self, value: u32) {
-        self.inner
-            .sum
-            .fetch_add(value as u64, std::sync::atomic::Ordering::Relaxed);
-    }
-
-    pub fn get_sum(&self) -> u32 {
-        self.inner.sum.load(std::sync::atomic::Ordering::Relaxed) as u32
-    }
-}
-
-#[derive(PartialEq, Eq, Clone)]
-pub struct MetricAttributes {
-    attributes: Vec<KeyValue>,
-    hash_value: u64,
-}
-
-impl MetricAttributes {
-    fn new(attributes: &[KeyValue]) -> MetricAttributes {
-        let attributes_vec = attributes.to_vec();
-        let hash_value = calculate_hash(&attributes_vec);
-        MetricAttributes {
-            attributes: attributes_vec,
-            hash_value: hash_value,
-        }
-    }
-
-    fn new_from_vec(attributes: Vec<KeyValue>) -> MetricAttributes {
-        let hash_value = calculate_hash(&attributes);
-        MetricAttributes {
-            attributes,
-            hash_value: hash_value,
-        }
-    }
-}
-
-impl Hash for MetricAttributes {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u64(self.hash_value)
-    }
-}
-
-fn calculate_hash(values: &[KeyValue]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    values.iter().fold(&mut hasher, |mut hasher, item| {
-        item.hash(&mut hasher);
-        hasher
-    });
-    hasher.finish()
-}
+use crate::metric::Metric;
+use crate::metricpoint::MetricPoint;
 
 #[derive(Clone)]
 pub struct Counter {
@@ -93,20 +16,10 @@ pub struct Counter {
 }
 
 impl Counter {
-    pub fn new() -> Counter {
+    pub fn new(name: String) -> Counter {
         Counter {
-            inner: Arc::new(CounterInner::new()),
+            inner: Arc::new(CounterInner::new(name)),
         }
-    }
-
-    pub fn new_with_periodic_flush() -> Counter {
-        let counter = Counter::new();
-        let counter_clone = counter.clone();
-        std::thread::spawn(move || loop {
-            std::thread::sleep(std::time::Duration::from_secs(10));
-            counter_clone.collect();
-        });
-        counter
     }
 
     pub fn add(&self, name: &'static str, attributes: &[KeyValue]) {
@@ -117,29 +30,46 @@ impl Counter {
         self.inner.display_metrics();
     }
 
-    pub fn collect(&self) {
-        self.inner.collect();
+    pub fn collect(&self) -> Metric {
+        self.inner.collect()
     }
 }
 
 pub struct CounterInner {
     metric_points_map: RwLock<HashMap<MetricAttributes, MetricPoint>>,
     zero_attribute_point: AtomicUsize,
+    name: String,
 }
 
 impl CounterInner {
-    pub fn new() -> CounterInner {
+    pub fn new(name: String) -> CounterInner {
         let counter = CounterInner {
             metric_points_map: RwLock::new(HashMap::new()),
             zero_attribute_point: AtomicUsize::new(0),
+            name: name,
         };
         counter
     }
 
-    pub fn collect(&self) {
-        self.metric_points_map.write().unwrap().clear();
+    pub fn collect(&self) -> Metric {
+        let mut metric_points: Vec<(Vec<KeyValue>, u32)> = Vec::new();
+
+        for kv in self.metric_points_map.write().unwrap().drain() {
+            metric_points.push((kv.0.attributes.clone(), kv.1.get_sum()));
+        }
+
+        metric_points.push((
+            vec![],
+            self.zero_attribute_point
+                .load(std::sync::atomic::Ordering::Relaxed) as u32,
+        ));
+
+        let metric = Metric::new(self.name.clone(), metric_points);
+
         self.zero_attribute_point
             .store(0, std::sync::atomic::Ordering::Relaxed);
+
+        metric
     }
 
     pub fn add(&self, _name: &'static str, attributes: &[KeyValue]) {

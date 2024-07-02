@@ -1,13 +1,10 @@
-use crossterm::event::{self, Event, KeyCode};
-use metrics::{common::KeyValue, counter::Counter, meter::Meter, meter_provider::MeterProvider};
+use metrics::{common::KeyValue, meter_provider::MeterProvider};
 use std::thread;
 
 fn main() {
-    let meter_provider = MeterProvider::new();
+    let meter_provider = MeterProvider::new_with_periodic_flush();
     let meter = meter_provider.get_meter("meter");
     let counter = meter.create_counter("counter-name");
-    // let counter = Counter::new_with_periodic_flush();
-    // let counter = Counter::new();
     let attributes = [
         KeyValue::new("key2", "value2"),
         KeyValue::new("key1", "value1"),
@@ -35,16 +32,5 @@ fn main() {
         counter.add("counter2", &[]);
         counter.add("counter2", &[]);
         thread::sleep(std::time::Duration::from_secs(1));
-
-        if event::poll(std::time::Duration::from_secs(0)).unwrap() {
-            match event::read().unwrap() {
-                Event::Key(event) => match event.code {
-                    KeyCode::Esc => break,                       // Quit the loop
-                    KeyCode::Enter => counter.display_metrics(), // Display metrics
-                    _ => {}
-                },
-                _ => {}
-            }
-        }
     }
 }

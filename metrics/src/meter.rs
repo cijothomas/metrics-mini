@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::counter::Counter;
+use crate::{counter::Counter, metric::Metric};
 
 #[derive(Clone)]
 pub struct Meter {
@@ -23,6 +23,16 @@ impl Meter {
     pub fn create_counter(&self, name: &str) -> Counter {
         self.inner.create_counter(name)
     }
+
+    pub fn collect(&self) -> Vec<Metric> {
+        let mut metrics = vec![];
+        let counters = self.inner.counters.lock().unwrap();
+        for counter in counters.values() {
+            metrics.push(counter.collect());
+        }
+
+        metrics
+    }
 }
 
 pub struct MeterInner {
@@ -36,7 +46,7 @@ impl MeterInner {
         if let Some(counter) = counters.get(name) {
             counter.clone()
         } else {
-            let counter = Counter::new();
+            let counter = Counter::new(name.to_string());
             counters.insert(name.to_string(), counter.clone());
             counter
         }

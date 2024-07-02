@@ -1,9 +1,11 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use metrics::{common::KeyValue, counter::Counter};
+use metrics::{common::KeyValue, meter_provider::MeterProvider};
 
 // cargo bench --bench counter
 pub fn counter_benchmark(c: &mut Criterion) {
-    let tracker = Counter::new_with_periodic_flush();
+    let meter_provider = MeterProvider::new_with_periodic_flush();
+    let meter = meter_provider.get_meter("meter");
+    let counter = meter.create_counter("counter-name");
 
     let attributes1 = [KeyValue::new("key1", "value1")];
 
